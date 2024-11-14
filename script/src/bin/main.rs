@@ -18,6 +18,8 @@ use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
 
 use ab_rotation_lib::{address_book::AddressBookIn, statement::StatementIn, PublicValuesStruct};
 
+use ab_rotation_script::generate_statement;
+
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
 pub const AB_ROTATION_ELF: &[u8] = include_elf!("ab-rotation-program");
 
@@ -56,35 +58,7 @@ fn main() {
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
-
-    let validators = ab_rotation_lib::signers::gen_validators::<VALIDATORS_COUNT>();
-
-    let ab_next: AddressBookIn = Default::default();
-    let ab_next_hash = ab_rotation_lib::address_book::digest_address_book_in(&ab_next);
-
-    let ab_curr: AddressBookIn = SmallVec::from_vec(
-        validators
-            .verifying_keys_with_weights([1; VALIDATORS_COUNT])
-            .map(|(a, b)| (Array(a), b))
-            .to_vec(),
-    );
-    let ab_curr_hash = ab_rotation_lib::address_book::digest_address_book_in(&ab_curr);
-
-    let message = ab_next_hash;
-
-    // NOTE: a third of the validators, rounded up
-    let signatures_count = (VALIDATORS_COUNT + 2) / 3;
-    let signatures = validators
-        .all_sign(signatures_count, &message)
-        .to_vec()
-        .into();
-
-    let statement = StatementIn {
-        ab_curr,
-        ab_next_hash,
-        signatures,
-    };
-
+    let (ab_curr_hash, ab_next_hash, statement) = generate_statement::<VALIDATORS_COUNT>();
     stdin.write(&statement);
 
     println!("validators_count: {}", VALIDATORS_COUNT);

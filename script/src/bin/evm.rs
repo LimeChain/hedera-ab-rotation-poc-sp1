@@ -10,6 +10,7 @@
 //! RUST_LOG=info cargo run --release --bin evm -- --system plonk
 //! ```
 
+use ab_rotation_script::generate_statement;
 use alloy_sol_types::SolType;
 use clap::{Parser, ValueEnum};
 use ab_rotation_lib::PublicValuesStruct;
@@ -20,14 +21,16 @@ use sp1_sdk::{
 use std::path::PathBuf;
 
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const FIBONACCI_ELF: &[u8] = include_elf!("ab-rotation-program");
+pub const AB_ROTATION_ELF: &[u8] = include_elf!("ab-rotation-program");
+
+/// The number of validators that are created for the proving
+// TODO: can be done with a runtime-known length
+pub const VALIDATORS_COUNT: usize = 30;
 
 /// The arguments for the EVM command.
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
 struct EVMArgs {
-    #[clap(long, default_value = "20")]
-    n: u32,
     #[clap(long, value_enum, default_value = "groth16")]
     system: ProofSystem,
 }
@@ -61,13 +64,13 @@ fn main() {
     let client = ProverClient::new();
 
     // Setup the program.
-    let (pk, vk) = client.setup(FIBONACCI_ELF);
+    let (pk, vk) = client.setup(AB_ROTATION_ELF);
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
-    stdin.write(&args.n);
+    let (ab_curr_hash, ab_next_hash, statement) = generate_statement::<VALIDATORS_COUNT>();
+    stdin.write(&statement);
 
-    println!("n: {}", args.n);
     println!("Proof System: {:?}", args.system);
 
     // Generate the proof based on the selected proof system.
