@@ -1,7 +1,18 @@
 [package]
-name = "fibonacci-lib"
+name = "ab-rotation-lib"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 alloy-sol-types = { workspace = true }
+bincode = "1.3.3"
+derive_more = { workspace = true }
+ed25519-dalek = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde-big-array = { workspace = true }
+sha2 = { workspace = true }
+smallvec = { workspace = true }
+
+[features]
+with_bls_aggregate = []

@@ -12,11 +12,18 @@
 
 use alloy_sol_types::SolType;
 use clap::Parser;
-use fibonacci_lib::PublicValuesStruct;
+use serde_big_array::Array;
+use smallvec::SmallVec;
 use sp1_sdk::{include_elf, ProverClient, SP1Stdin};
 
+use ab_rotation_lib::{address_book::AddressBookIn, statement::StatementIn, PublicValuesStruct};
+
 /// The ELF (executable and linkable format) file for the Succinct RISC-V zkVM.
-pub const FIBONACCI_ELF: &[u8] = include_elf!("fibonacci-program");
+pub const AB_ROTATION_ELF: &[u8] = include_elf!("ab-rotation-program");
+
+/// The number of validators that are created for the proving
+// TODO: can be done with a runtime-known length
+pub const VALIDATORS_COUNT: usize = 30;
 
 /// The arguments for the command.
 #[derive(Parser, Debug)]
@@ -28,8 +35,8 @@ struct Args {
     #[clap(long)]
     prove: bool,
 
-    #[clap(long, default_value = "20")]
-    n: u32,
+    // #[clap(long, default_value_t = 1)]
+    // validators_count: u32,
 }
 
 fn main() {
@@ -49,32 +56,62 @@ fn main() {
 
     // Setup the inputs.
     let mut stdin = SP1Stdin::new();
-    stdin.write(&args.n);
 
-    println!("n: {}", args.n);
+    let validators = ab_rotation_lib::signers::gen_validators::<VALIDATORS_COUNT>();
+
+    let ab_next: AddressBookIn = Default::default();
+    let ab_next_hash = ab_rotation_lib::address_book::digest_address_book_in(&ab_next);
+
+    let ab_curr: AddressBookIn = SmallVec::from_vec(
+        validators
+            .verifying_keys_with_weights([1; VALIDATORS_COUNT])
+            .map(|(a, b)| (Array(a), b))
+            .to_vec(),
+    );
+    let ab_curr_hash = ab_rotation_lib::address_book::digest_address_book_in(&ab_curr);
+
+    let message = ab_next_hash;
+
+    // NOTE: a third of the validators, rounded up
+    let signatures_count = (VALIDATORS_COUNT + 2) / 3;
+    let signatures = validators
+        .all_sign(signatures_count, &message)
+        .to_vec()
+        .into();
+
+    let statement = StatementIn {
+        ab_curr,
+        ab_next_hash,
+        signatures,
+    };
+
+    stdin.write(&statement);
+
+    println!("validators_count: {}", VALIDATORS_COUNT);
 
     if args.execute {
         // Execute the program
-        let (output, report) = client.execute(FIBONACCI_ELF, stdin).run().unwrap();
+        let (output, report) = client.execute(AB_ROTATION_ELF, stdin).run().unwrap();
         println!("Program executed successfully.");
 
         // Read the output.
         let decoded = PublicValuesStruct::abi_decode(output.as_slice(), true).unwrap();
-        let PublicValuesStruct { n, a, b } = decoded;
-        println!("n: {}", n);
-        println!("a: {}", a);
-        println!("b: {}", b);
+        let PublicValuesStruct {
+            ab_curr_hash: ab_curr_hash_decoded,
+            ab_next_hash: ab_next_hash_decoded,
+        } = decoded;
+        println!("ab_curr_hash_decoded: {}", ab_curr_hash_decoded);
+        println!("ab_next_hash_decoded: {}", ab_next_hash_decoded);
 
-        let (expected_a, expected_b) = fibonacci_lib::fibonacci(n);
-        assert_eq!(a, expected_a);
-        assert_eq!(b, expected_b);
+        assert_eq!(ab_curr_hash_decoded.0, ab_curr_hash);
+        assert_eq!(ab_next_hash_decoded.0, ab_next_hash);
         println!("Values are correct!");
 
         // Record the number of cycles executed.
         println!("Number of cycles: {}", report.total_instruction_count());
     } else {
         // Setup the program for proving.
-        let (pk, vk) = client.setup(FIBONACCI_ELF);
+        let (pk, vk) = client.setup(AB_ROTATION_ELF);
 
         // Generate the proof
         let proof = client

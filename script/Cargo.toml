@@ -1,11 +1,11 @@
 [package]
 version = "0.1.0"
-name = "fibonacci-script"
+name = "ab-rotation-script"
 edition = "2021"
-default-run = "fibonacci"
+default-run = "ab-rotation"
 
 [[bin]]
-name = "fibonacci"
+name = "ab-rotation"
 path = "src/bin/main.rs"
 
 [[bin]]
@@ -16,11 +16,14 @@ path = "src/bin/evm.rs"
 sp1-sdk = "3.0.0"
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 serde = { version = "1.0.200", default-features = false, features = ["derive"] }
+serde-big-array = { workspace = true }
+smallvec = "1.13"
 clap = { version = "4.0", features = ["derive", "env"] }
 tracing = "0.1.40"
 hex = "0.4.3"
 alloy-sol-types = { workspace = true }
-fibonacci-lib = { path = "../lib" }
+ab-rotation-lib = { workspace = true }
+sha2 = { workspace = true }
 
 [build-dependencies]
 sp1-helper = "3.0.0"
